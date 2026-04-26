@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SUN-Agent Admin</title>
+<style>
+  body { font-family:Arial,sans-serif; color:#333; max-width:960px; margin:auto; padding:28px 20px; }
+  h1 { color:#1a1a2e; margin-bottom:2px; }
+  table { border-collapse:collapse; width:100%; margin-top:16px; }
+  th { background:#1a1a2e; color:#fff; padding:8px 10px; text-align:left; font-size:12px; }
+  td { padding:7px 10px; border-bottom:1px solid #eee; font-size:13px; vertical-align:middle; }
+  tr:hover td { background:#fafafa; }
+  .pill { display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;color:#fff; }
+</style>
+</head><body>
+
+<h1>SUN-Agent Admin</h1>
+<p style="color:#888;margin-top:0;font-size:13px">
+  1 store(s) &nbsp;·&nbsp; Last generated: April 26, 2026 at 1:36 PM
+  &nbsp;·&nbsp; <a href="/" style="color:#e63946;font-size:12px">← Public index</a>
+</p>
+<p style="font-size:11px;color:#bbb;margin-top:-8px">
+  Tip: protect this page with <a href="https://developers.cloudflare.com/cloudflare-one/policies/access/" style="color:#e63946">Cloudflare Access</a> to require login.
+</p>
+
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:4px;
+            background:#f8f9ff;border:1px solid #e0e0ee;border-radius:8px;padding:12px 16px;flex-wrap:wrap">
+  <span style="font-size:12px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Filter Date Range</span>
+  <label style="font-size:12px;color:#555">From
+    <input id="adm-start" type="date" style="margin-left:6px;font-size:13px;border:1px solid #ddd;border-radius:4px;padding:3px 6px">
+  </label>
+  <label style="font-size:12px;color:#555">To
+    <input id="adm-end" type="date" style="margin-left:6px;font-size:13px;border:1px solid #ddd;border-radius:4px;padding:3px 6px">
+  </label>
+  <span style="font-size:11px;color:#bbb">Updates "Range %" column and sparklines</span>
+</div>
+
+<table>
+  <tr>
+    <th>Store</th>
+    <th>7-Day Util</th>
+    <th>3-Day Trend</th>
+    <th>Range %</th>
+    <th>Lapsed</th>
+    <th>Risk Appts</th>
+    <th>Data</th>
+    <th>Bookings (30d)</th>
+    <th></th>
+  </tr>
+  <tr>
+          <td style="font-weight:600"><a href="/grand_rapids_mi/" style="color:#e63946;text-decoration:none">Grand Rapids, MI</a></td>
+          <td><span id="adm-pct-grand_rapids_mi">26%</span></td>
+          <td style="color:#27ae60;font-weight:600">↑</td>
+          <td><span id="adm-range-grand_rapids_mi">—</span></td>
+          <td>1028</td>
+          <td>0</td>
+          <td>3d</td>
+          <td><svg id="adm-spark-grand_rapids_mi" width="100" height="24" style="display:block;overflow:visible"><polyline id="adm-spark-grand_rapids_mi-line" points="5,11.6 50,5.0 95,8.3" fill="none" stroke="#e63946" stroke-width="2"/></svg></td>
+          <td><a href="/grand_rapids_mi/" style="color:#e63946;font-size:12px">View →</a></td>
+        </tr>
+</table>
+
+<hr style="margin-top:40px;border:none;border-top:1px solid #eee">
+<p style="font-size:11px;color:#aaa">SUN-Agent | Powered by Salon Ultimate data</p>
+
+<script>
+(function() {
+const ALL = {"grand_rapids_mi": [{"date": "2026-04-21", "booked": 9}, {"date": "2026-04-22", "booked": 17}, {"date": "2026-04-23", "booked": 13}]};
+function avg(arr) { return arr.length ? arr.reduce((s,x)=>s+x,0)/arr.length : 0; }
+function svgPoints(vals, w, h) {
+  if (!vals.length) return "";
+  const pad=5, n=vals.length, mx=Math.max(...vals,1);
+  return vals.map((v,i) => {
+    const x = pad+i*(w-pad*2)/Math.max(n-1,1);
+    const y = (h-pad)-v/mx*(h-pad*2);
+    return x.toFixed(1)+","+y.toFixed(1);
+  }).join(" ");
+}
+function applyRange(start, end) {
+  for (const [sid, days] of Object.entries(ALL)) {
+    const filtered = days.filter(d => d.date >= start && d.date <= end);
+    const booked = filtered.map(d => d.booked);
+    const total  = filtered.map(d => d.total || 0);
+    const sumBooked = booked.reduce((s,x)=>s+x,0);
+    const sumTotal  = total.reduce((s,x)=>s+x,0);
+    const pct = sumTotal ? Math.round(sumBooked/sumTotal*100) : 0;
+    const rangeEl = document.getElementById("adm-range-"+sid);
+    if (rangeEl) rangeEl.textContent = filtered.length ? pct+"%" : "—";
+    const spEl = document.getElementById("adm-spark-"+sid+"-line");
+    if (spEl) spEl.setAttribute("points", svgPoints(booked, 100, 24));
+  }
+}
+function init() {
+  const allDates = Object.values(ALL).flat().map(d=>d.date).sort();
+  const minDate = allDates[0] || "";
+  const maxDate = allDates[allDates.length-1] || "";
+  const s = document.getElementById("adm-start");
+  const e = document.getElementById("adm-end");
+  if (!s || !e) return;
+  s.min=minDate; s.max=maxDate; e.min=minDate; e.max=maxDate;
+  s.value = allDates.length > 30 ? allDates[allDates.length-30] : (allDates[0]||"");
+  e.value = maxDate;
+  const onChange = () => { if (s.value && e.value) applyRange(s.value, e.value); };
+  s.addEventListener("change", onChange);
+  e.addEventListener("change", onChange);
+  if (s.value && e.value) applyRange(s.value, e.value);
+}
+document.addEventListener("DOMContentLoaded", init);
+})();
+</script>
+</body></html>
