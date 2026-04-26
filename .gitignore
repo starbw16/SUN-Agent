@@ -1,0 +1,40 @@
+# Client data — never commit
+stores/
+processed/
+quarantine/
+sun_agent/CSV/
+sun_agent/src/dashboard/inbound/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+.env
+venv/
+env/
+
+# Test cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+
+# Claude Code project memory
+.claude/
+
+# Logs
+*.log
+sun_agent/logs/
+logs/

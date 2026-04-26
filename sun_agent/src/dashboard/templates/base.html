@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SUN-Agent Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+           background: #f0f2f5; color: #333; }
+    nav { background: #1a1a2e; color: #fff; padding: 0 24px;
+          display: flex; align-items: center; height: 52px; gap: 24px; }
+    nav a { color: #ccc; text-decoration: none; font-size: 14px; }
+    nav a:hover { color: #fff; }
+    nav .brand { font-weight: 700; font-size: 18px; color: #e63946; }
+    .container { max-width: 1100px; margin: 28px auto; padding: 0 20px; }
+    .card { background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.08);
+            padding: 20px 24px; margin-bottom: 20px; }
+    h1 { font-size: 22px; margin-bottom: 16px; color: #1a1a2e; }
+    h2 { font-size: 16px; color: #1a1a2e; margin-bottom: 10px;
+         border-bottom: 2px solid #e63946; padding-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { background: #1a1a2e; color: #fff; padding: 8px 12px; text-align: left; }
+    td { padding: 7px 12px; border-bottom: 1px solid #eee; }
+    tr:hover td { background: #fafafa; }
+    a { color: #2979ff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .btn { display: inline-block; padding: 7px 16px; border-radius: 5px; font-size: 13px;
+           cursor: pointer; border: none; font-weight: 600; }
+    .btn-primary { background: #2979ff; color: #fff; }
+    .btn-secondary { background: #e9ecef; color: #333; }
+    .btn-danger { background: #e63946; color: #fff; }
+    .btn:hover { opacity: .88; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 12px;
+             font-size: 11px; font-weight: 700; color: #fff; }
+    .badge-low { background: #2ecc71; }
+    .badge-mid { background: #3498db; }
+    .badge-growth { background: #e74c3c; }
+    .badge-daily { background: #8e44ad; }
+    .badge-weekly { background: #16a085; }
+    .alert { padding: 10px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 14px; }
+    .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    label { font-size: 13px; font-weight: 600; display: block; margin-bottom: 4px; }
+    input[type=text], input[type=email], select {
+      width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 5px;
+      font-size: 14px; margin-bottom: 14px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+    .stat { background: #fff; border-radius: 8px; padding: 14px 18px;
+            box-shadow: 0 1px 4px rgba(0,0,0,.08); text-align: center; }
+    .stat .num { font-size: 28px; font-weight: 700; color: #1a1a2e; }
+    .stat .lbl { font-size: 12px; color: #888; margin-top: 2px; }
+  </style>
+</head>
+<body>
+<nav>
+  <span class="brand">SUN-Agent</span>
+  <a href="/">All Stores</a>
+</nav>
+<div class="container">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, msg in messages %}
+      <div class="alert alert-{{ category }}">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</div>
+</body>
+</html>

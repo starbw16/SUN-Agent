@@ -1,0 +1,364 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+  <h1 style="margin:0">{{ cfg.store_name or cfg.store_id }}</h1>
+  <a href="/stores/{{ cfg.store_id }}/edit" class="btn btn-primary">Edit Settings</a>
+  <a href="/stores/{{ cfg.store_id }}/data" class="btn btn-secondary">Data Explorer</a>
+  <form method="POST" action="/poll-email" style="margin:0">
+    <button type="submit" class="btn btn-secondary">Check Email Now</button>
+  </form>
+  <form method="POST" action="/stores/{{ cfg.store_id }}/send-brief" style="margin:0">
+    <button type="submit" class="btn btn-secondary">Send Brief Now</button>
+  </form>
+  <form method="POST" action="/stores/{{ cfg.store_id }}/send-review-texts" style="margin:0">
+    <input type="hidden" name="dry_run" value="1">
+    <button type="submit" class="btn btn-secondary">Test Review Texts (Dry Run)</button>
+  </form>
+  <form method="POST" action="/stores/{{ cfg.store_id }}/send-review-texts" style="margin:0">
+    <button type="submit" class="btn btn-secondary">Send Review Texts</button>
+  </form>
+</div>
+
+<!-- As-of date filter -->
+<form method="GET" action="/stores/{{ cfg.store_id }}" style="display:flex;align-items:center;gap:10px;margin-bottom:20px;background:#f0f4ff;padding:10px 14px;border-radius:8px;flex-wrap:wrap">
+  <label style="font-weight:600;font-size:14px">View intelligence as of:</label>
+  <input type="date" name="as_of" value="{{ as_of }}" style="padding:5px 8px;border:1px solid #ccd;border-radius:5px;font-size:14px">
+  <button type="submit" class="btn btn-primary" style="padding:5px 14px">Apply</button>
+  {% if as_of != today_str %}
+  <a href="/stores/{{ cfg.store_id }}" style="font-size:13px;color:#888">← Back to today</a>
+  {% endif %}
+  <span style="font-size:12px;color:#888;margin-left:auto">Filters: utilization, retention, risk, bookings — all calculated relative to this date</span>
+</form>
+
+<!-- Stats row -->
+{% if stats %}
+<div class="stat-grid">
+  <div class="stat"><div class="num">{{ stats.clients }}</div><div class="lbl">Clients</div></div>
+  <div class="stat"><div class="num">{{ stats.visits }}</div><div class="lbl">Visit Records</div></div>
+  <div class="stat"><div class="num">{{ stats.ingestions }}</div><div class="lbl">Files Ingested</div></div>
+  <div class="stat">
+    <div class="num">
+      {% set tier = cfg.utilization_tier or 'mid' %}
+      <span class="badge badge-{{ tier }}" style="font-size:16px">{{ tier.upper() }}</span>
+    </div>
+    <div class="lbl">Utilization Tier</div>
+  </div>
+</div>
+{% if stats.last_ingest %}
+<p style="font-size:12px;color:#888;margin-bottom:16px">
+  Last ingestion: {{ stats.last_ingest.ingested_at }} — {{ stats.last_ingest.report_type }}
+  ({{ stats.last_ingest.status }}, {{ stats.last_ingest.row_count_loaded }} rows)
+  <a href="/stores/{{ cfg.store_id }}/ingestion" style="margin-left:8px">View history →</a>
+</p>
+{% endif %}
+{% endif %}
+
+<!-- Config summary -->
+<div class="card">
+  <h2>Configuration</h2>
+  <table>
+    <tr><th style="width:220px">Field</th><th>Value</th></tr>
+    <tr><td>Owner Email</td><td>{{ cfg.owner_email or '⚠ not set' }}</td></tr>
+    <tr><td>Owner Phone</td><td>{{ cfg.owner_phone or '—' }}</td></tr>
+    <tr><td>Twilio Number</td><td>{{ cfg.twilio_number or '—' }}</td></tr>
+    <tr><td>Booking URL</td><td>
+      {% if cfg.booking_url %}<a href="{{ cfg.booking_url }}" target="_blank">{{ cfg.booking_url }}</a>{% else %}⚠ not set{% endif %}
+    </td></tr>
+    <tr><td>Timezone</td><td>{{ cfg.timezone or 'America/New_York' }}</td></tr>
+    <tr><td>Retention Windows</td><td>{% if cfg.retention_windows_days %}{% for d in cfg.retention_windows_days %}{% if not loop.first %}, {% endif %}{{ (d / 7) | int }}{% endfor %}{% else %}4, 6, 8{% endif %} weeks</td></tr>
+    <tr><td>Brief Frequency</td><td>
+      <span class="badge badge-{{ cfg.brief_frequency or 'daily' }}">{{ cfg.brief_frequency or 'daily' }}</span>
+    </td></tr>
+  </table>
+</div>
+
+<!-- Expected Reports -->
+<div class="card" style="background:#f8f9ff;border:1px solid #dde">
+  <h2 style="margin-bottom:8px">Reports to Email In</h2>
+  <p style="font-size:12px;color:#666;margin-bottom:10px">Forward these Salon Ultimate exports to <strong>{{ cfg.ingest_email or 'your ingest email address' }}</strong></p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px;font-size:13px">
+    {% for rpt in [
+      ('Clients with Service', 'clients_with_service', 'Visit history &amp; rebook data'),
+      ('Appt Confirmation List', 'appt_conf_list', 'Upcoming appointments'),
+      ('Stylist Daily Schedule', 'stylist_daily_schedule', 'Chair utilization slots'),
+      ('Cancel/No-Show', 'cancel_no_show', 'Risk scoring'),
+      ('Appointment Audits', 'appointment_audits', 'Booking channel tracking'),
+      ('7-Day Appointment Forecast', 'forecast_7day', 'Demand forecasting'),
+      ('Weekly Time Sheet Report', 'weekly_timesheet', 'Actual hours worked — utilization denominator'),
+    ] %}
+    <div style="padding:6px 10px;background:#fff;border-radius:6px;border:1px solid #e0e0e8">
+      <div style="font-weight:600">{{ rpt[0] }}</div>
+      <div style="color:#888;font-size:11px">{{ rpt[2] }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Today's Brief -->
+{% if brief and not brief.error %}
+<div class="card">
+  <h2>Today's Intelligence — {{ brief.brief_date }}</h2>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+    <!-- Open Chair -->
+    <div>
+      <h2>Chair Utilization</h2>
+      {% set oc = brief.open_chair %}
+      {% set util = brief.utilization %}
+      {% set u30 = brief.utilization_30 %}
+      {% set u7  = brief.utilization_7  %}
+      {% set u3  = brief.utilization_3  %}
+      {% set ud  = brief.utilization_day %}
+      {% if u7.days_on_record > 0 %}
+        {% set diff = u3.avg_pct - u7.avg_pct %}
+        {% set tcolor = '#27ae60' if diff >= 5 else ('#e74c3c' if diff <= -5 else '#1a1a2e') %}
+        <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;margin-bottom:8px">
+          {% if u30.days_on_record > 0 %}
+          <div>
+            <div style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.05em">30-Day</div>
+            <div style="font-size:24px;font-weight:700;color:#888">{{ u30.avg_pct }}%</div>
+            <div style="font-size:11px;color:#bbb">{{ u30.days_on_record }}d</div>
+          </div>
+          {% endif %}
+          <div>
+            <div style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.05em">7-Day</div>
+            <div style="font-size:24px;font-weight:700;color:#1a1a2e">{{ u7.avg_pct }}%</div>
+            <div style="font-size:11px;color:#888">{{ u7.avg_booked_appts }}/{{ u7.avg_total_appts }} appts/day</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.05em">3-Day</div>
+            <div style="font-size:24px;font-weight:700;color:{{ tcolor }}">{{ u3.avg_pct }}%</div>
+            <div style="font-size:11px;color:#888">
+              {% if diff > 0 %}▲ +{% elif diff < 0 %}▼ {% else %}— {% endif %}
+              {% if diff != 0 %}{{ diff | abs }}pp{% else %}flat{% endif %}
+            </div>
+          </div>
+          {% if ud.days_on_record > 0 %}
+          <div style="border-left:2px solid #eee;padding-left:20px">
+            <div style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.05em">{{ as_of }}</div>
+            <div style="font-size:24px;font-weight:700;color:#1a1a2e">{{ ud.avg_pct }}%</div>
+            <div style="font-size:11px;color:#888">{{ ud.avg_booked_appts }}/{{ ud.avg_total_appts }} appts
+              <span class="badge badge-{{ oc.tier }}" style="font-size:10px;margin-left:4px">{{ oc.tier.upper() }}</span>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      {% else %}
+        {% set pct = (oc.coverage * 100)|int %}
+        <p style="font-size:28px;font-weight:700;color:#1a1a2e">{{ pct }}%
+          <span class="badge badge-{{ oc.tier }}" style="font-size:14px">{{ oc.tier.upper() }}</span>
+        </p>
+        <p style="color:#888;font-size:13px">{{ oc.booked_slots }}/{{ oc.total_slots }} slots booked today</p>
+      {% endif %}
+      {% if brief.utilization_7.by_provider %}
+      {# Store-level booked appointments sparkline #}
+      {% set store_daily = brief.utilization_series.store_daily %}
+      {% set sn = store_daily | length %}
+      {% if sn > 0 %}
+        {% set max_b = (store_daily | map(attribute='booked') | list | max) %}
+        {% set W = 340 %}{% set H = 44 %}{% set pad = 5 %}
+        <div style="margin:12px 0 16px;padding:10px 14px;background:#f8f9ff;border-radius:8px;border:1px solid #e8e8f0">
+          <div style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">
+            Total Booked Appointments — Last 30 Days
+          </div>
+          <svg width="{{ W }}" height="{{ H }}" style="overflow:visible;display:block">
+            {% set points = namespace(line='', area='') %}
+            {% for pt in store_daily %}
+              {% if sn == 1 %}{% set x = W // 2 %}
+              {% else %}{% set x = (loop.index0 * (W - pad*2) // (sn - 1) + pad) | int %}{% endif %}
+              {% set y = (H - pad - pt.booked * (H - pad*2) / ([max_b, 1]|max)) | int %}
+              {% set points.line = points.line ~ x ~ ',' ~ y ~ ' ' %}
+              {% set points.area = points.area ~ x ~ ',' ~ y ~ ' ' %}
+            {% endfor %}
+            {% set last_x = (((sn-1) * (W - pad*2) // ([sn-1,1]|max)) + pad) | int %}
+            {% set last_b = store_daily[-1].booked %}
+            {% set last_y = (H - pad - last_b * (H - pad*2) / ([max_b, 1]|max)) | int %}
+            <polygon points="{{ points.area }}{{ last_x }},{{ H - pad }} {{ pad }},{{ H - pad }}"
+                     fill="#7b8cde" fill-opacity="0.15"/>
+            <polyline points="{{ points.line }}"
+                      fill="none" stroke="#7b8cde" stroke-width="2"
+                      stroke-linejoin="round" stroke-linecap="round"/>
+            <circle cx="{{ last_x }}" cy="{{ last_y }}" r="4"
+                    fill="#7b8cde" stroke="#fff" stroke-width="2"
+                    title="{{ store_daily[-1].date }}: {{ last_b }} appts"/>
+            {# y-axis label: max #}
+            <text x="{{ pad - 2 }}" y="{{ pad + 3 }}" font-size="8" fill="#bbb" text-anchor="end">{{ max_b }}</text>
+            <text x="{{ pad - 2 }}" y="{{ H - pad }}" font-size="8" fill="#bbb" text-anchor="end">0</text>
+            {# date labels: first and last #}
+            <text x="{{ pad }}" y="{{ H + 10 }}" font-size="8" fill="#bbb">{{ store_daily[0].date[5:] }}</text>
+            <text x="{{ last_x }}" y="{{ H + 10 }}" font-size="8" fill="#bbb" text-anchor="end">{{ store_daily[-1].date[5:] }}</text>
+          </svg>
+        </div>
+      {% endif %}
+
+      {% set p7  = {} %}{% for x in brief.utilization_7.by_provider  %}{% set _ = p7.update({x.provider: x})  %}{% endfor %}
+      {% set p3  = {} %}{% for x in brief.utilization_3.by_provider  %}{% set _ = p3.update({x.provider: x})  %}{% endfor %}
+      {% set pd  = {} %}{% for x in brief.utilization_day.by_provider %}{% set _ = pd.update({x.provider: x})  %}{% endfor %}
+      {% set series = brief.utilization_series.by_provider %}
+      {% set all_providers = brief.utilization_7.by_provider | map(attribute='provider') | list %}
+
+      <table style="margin-top:10px">
+        <tr>
+          <th>Provider</th>
+          <th style="min-width:160px">Utilization % — 30 days</th>
+          <th>7-Day</th>
+          <th>3-Day</th>
+          <th>{{ as_of }}</th>
+        </tr>
+        {% for provider in all_providers %}
+          {% set r7  = p7.get(provider)  %}
+          {% set r3  = p3.get(provider)  %}
+          {% set rd  = pd.get(provider)  %}
+          {% set pts = series.get(provider, []) %}
+          {% set pct7 = r7.avg_pct if r7 else 0 %}
+          {% set pct3 = r3.avg_pct if r3 else 0 %}
+          {% set diff = pct3 - pct7 %}
+          {% set tcolor = '#27ae60' if diff >= 5 else ('#e74c3c' if diff <= -5 else '#7b8cde') %}
+          {% set n = pts | length %}
+          <tr>
+            <td>{{ provider }}</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:6px">
+              {% if n > 0 %}
+                {% set W = 150 %}{% set H = 28 %}{% set pad = 3 %}
+                <svg width="{{ W }}" height="{{ H }}" style="overflow:visible">
+                  {% set points = namespace(line='', area='') %}
+                  {% for pt in pts %}
+                    {% if n == 1 %}{% set x = W // 2 %}
+                    {% else %}{% set x = (loop.index0 * (W - pad*2) // (n - 1) + pad) | int %}{% endif %}
+                    {% set y = (H - pad - pt.pct * (H - pad*2) / 100) | int %}
+                    {% set points.line = points.line ~ x ~ ',' ~ y ~ ' ' %}
+                    {% set points.area = points.area ~ x ~ ',' ~ y ~ ' ' %}
+                  {% endfor %}
+                  {% set last_x = (((n-1) * (W - pad*2) // ([n-1,1]|max)) + pad) | int %}
+                  {% set last_y = (H - pad - pts[-1].pct * (H - pad*2) / 100) | int %}
+                  <polygon points="{{ points.area }}{{ last_x }},{{ H - pad }} {{ pad }},{{ H - pad }}"
+                           fill="{{ tcolor }}" fill-opacity="0.12"/>
+                  <polyline points="{{ points.line }}"
+                            fill="none" stroke="{{ tcolor }}" stroke-width="1.8"
+                            stroke-linejoin="round" stroke-linecap="round"/>
+                  <circle cx="{{ last_x }}" cy="{{ last_y }}" r="3"
+                          fill="{{ tcolor }}" stroke="#fff" stroke-width="1.5"
+                          title="{{ pts[-1].date }}: {{ pts[-1].pct }}%"/>
+                </svg>
+              {% else %}
+                <span style="color:#ddd;font-size:11px">no data</span>
+              {% endif %}
+                <span style="font-size:12px;font-weight:700;color:{{ tcolor }}">
+                  {% if diff >= 5 %}↑{% elif diff <= -5 %}↓{% else %}→{% endif %}
+                </span>
+              </div>
+            </td>
+            <td><strong>{{ pct7 }}%</strong>
+              <span style="font-size:10px;color:#aaa">({{ r7.days_on_record if r7 else 0 }}d)</span>
+            </td>
+            <td style="color:{{ tcolor }}"><strong>{{ pct3 }}%</strong>
+              <span style="font-size:10px;color:#aaa">{% if diff > 0 %}+{% endif %}{{ diff }}pp</span>
+            </td>
+            <td><strong style="color:{{ tcolor }}">{{ rd.avg_pct ~ '%' if rd else '—' }}</strong></td>
+          </tr>
+        {% endfor %}
+      </table>
+      {% endif %}
+    </div>
+
+    <!-- Retention -->
+    <div>
+      <h2>Lapsed Clients</h2>
+      <p style="font-size:28px;font-weight:700;color:#1a1a2e">{{ brief.retention.total_lapsed }}</p>
+      <p style="color:#888;font-size:13px">clients past their visit window</p>
+      <table style="margin-top:10px">
+        <tr><th>Window</th><th>Clients</th></tr>
+        {% for w in brief.retention.windows %}
+        <tr><td>{{ (w // 7) }} weeks</td><td>{{ brief.retention.buckets[w]|length }}</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+
+  <!-- Rebook Time -->
+  {% if brief.rebook_time and brief.rebook_time.avg_weeks %}
+  <div style="margin-bottom:20px">
+    <h2>Avg Rebook Time</h2>
+    <p style="font-size:28px;font-weight:700;color:#1a1a2e">{{ brief.rebook_time.avg_weeks }} weeks
+      <span style="font-size:13px;font-weight:400;color:#888">overall &mdash; {{ brief.rebook_time.sample_size }} visit gaps</span>
+    </p>
+    {% if brief.rebook_time.by_category %}
+    <table style="margin-top:10px">
+      <tr><th>Service Category</th><th>Avg Return</th><th>Sample</th></tr>
+      {% for cat in brief.rebook_time.by_category %}
+      <tr><td>{{ cat.category }}</td><td>{{ cat.avg_weeks }} wks</td><td>{{ cat.sample_size }}</td></tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+    <!-- Risk -->
+    <div>
+      <h2>Risk Appointments (next 3 days)</h2>
+      {% if brief.risk %}
+      <table>
+        <tr><th>Date</th><th>Client</th><th>Risk</th></tr>
+        {% for r in brief.risk %}
+        <tr>
+          <td>{{ r.appointment_date }}<br><span style="color:#888;font-size:11px">{{ r.start_time or '' }}</span></td>
+          <td>{{ r.client_name }}</td>
+          <td><span class="badge badge-{{ 'growth' if r.risk_band == 'high' else 'mid' }}">
+            {{ r.cancel_no_show_count }}x {{ r.risk_band.upper() }}
+          </span></td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}
+      <p style="color:#888;font-size:13px">None flagged.</p>
+      {% endif %}
+    </div>
+
+    <!-- Booking Source -->
+    <div>
+      <h2>Booking Channels (7 days)</h2>
+      {% if brief.booking_source.channels %}
+      <table>
+        <tr><th>Channel</th><th>Bookings</th><th>Share</th></tr>
+        {% for ch in brief.booking_source.channels %}
+        <tr><td>{{ ch.channel }}</td><td>{{ ch.count }}</td><td>{{ ch.pct }}%</td></tr>
+        {% endfor %}
+      </table>
+      {% else %}
+      <p style="color:#888;font-size:13px">No channel data yet.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if review_stats %}
+<div class="card">
+  <h2>Review Texts — Last 30 Days</h2>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:12px">
+    <div class="stat"><div class="num">{{ review_stats.total_sent }}</div><div class="lbl">Sent</div></div>
+    <div class="stat"><div class="num">{{ review_stats.response_rate_pct }}%</div><div class="lbl">Response Rate</div></div>
+    <div class="stat"><div class="num" style="color:#27ae60">{{ review_stats.positive }}</div><div class="lbl">Positive</div></div>
+    <div class="stat"><div class="num" style="color:#e74c3c">{{ review_stats.negative }}</div><div class="lbl">Negative</div></div>
+  </div>
+  {% if review_stats.total_sent > 0 %}
+  <p style="font-size:13px;color:#888">
+    {{ review_stats.positive_pct }}% positive of {{ review_stats.responded }} responses &mdash;
+    {{ review_stats.pending }} still pending.
+    {% if not cfg.google_review_url %}<span style="color:#e67e22"> ⚠ No Google Review URL set — add it in Edit Settings.</span>{% endif %}
+    {% if not cfg.review_alert_email and not cfg.owner_email %}<span style="color:#e67e22"> ⚠ No alert email set — negative reviews won't be forwarded.</span>{% endif %}
+  </p>
+  {% else %}
+  <p style="font-size:13px;color:#888">No review texts sent yet. Click "Send Review Texts" to start.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+{% elif brief and brief.error %}
+<div class="card">
+  <p style="color:#888;font-size:13px">Intelligence not available: {{ brief.error }}</p>
+</div>
+{% endif %}
+
+{% endblock %}

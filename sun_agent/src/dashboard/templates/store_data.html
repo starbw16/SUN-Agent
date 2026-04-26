@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+  <h1 style="margin:0">{{ cfg.store_name or cfg.store_id }} — Data Explorer</h1>
+  <a href="/stores/{{ cfg.store_id }}" class="btn btn-secondary">← Back to Dashboard</a>
+</div>
+
+<!-- Filters -->
+<form method="GET" action="/stores/{{ store_id }}/data"
+      style="display:flex;align-items:center;gap:10px;margin-bottom:20px;background:#f0f4ff;padding:12px 16px;border-radius:8px;flex-wrap:wrap">
+
+  <label style="font-weight:600;font-size:14px">Table:</label>
+  <select name="table" style="padding:5px 8px;border:1px solid #ccd;border-radius:5px;font-size:14px">
+    <option value="timesheets"  {% if table=='timesheets'  %}selected{% endif %}>Timesheets (hours worked)</option>
+    <option value="schedule"    {% if table=='schedule'    %}selected{% endif %}>Schedule Slots (utilization)</option>
+    <option value="visits"      {% if table=='visits'      %}selected{% endif %}>Client Visits</option>
+    <option value="ingestion"   {% if table=='ingestion'   %}selected{% endif %}>Ingestion Log</option>
+  </select>
+
+  <label style="font-weight:600;font-size:14px">From:</label>
+  <input type="date" name="date_from" value="{{ date_from }}"
+         style="padding:5px 8px;border:1px solid #ccd;border-radius:5px;font-size:14px">
+
+  <label style="font-weight:600;font-size:14px">To:</label>
+  <input type="date" name="date_to" value="{{ date_to }}"
+         style="padding:5px 8px;border:1px solid #ccd;border-radius:5px;font-size:14px">
+
+  <button type="submit" class="btn btn-primary" style="padding:5px 14px">Filter</button>
+  <a href="/stores/{{ store_id }}/data?table={{ table }}" style="font-size:13px;color:#888">Clear dates</a>
+  <span style="font-size:12px;color:#888;margin-left:auto">{{ rows|length }} row(s)</span>
+</form>
+
+<!-- Results table -->
+{% if rows %}
+<div class="card" style="overflow-x:auto">
+  <table>
+    <tr>
+      {% for col in columns %}
+      <th>{{ col }}</th>
+      {% endfor %}
+    </tr>
+    {% for row in rows %}
+    <tr>
+      {% for cell in row %}
+      <td style="font-size:13px">
+        {% if cell is none or cell == '' %}
+          <span style="color:#bbb">—</span>
+        {% elif cell == 1 and loop.index == columns|length and table == 'timesheets' %}
+          <span style="color:#27ae60">✓</span>
+        {% elif cell == 0 and loop.index == columns|length and table == 'timesheets' %}
+          <span style="color:#e67e22">pending</span>
+        {% else %}
+          {{ cell }}
+        {% endif %}
+      </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% else %}
+<div class="card">
+  <p style="color:#888;font-size:14px">No records found{% if date_from or date_to %} for the selected date range{% endif %}. Try adjusting the filters or ingesting more data.</p>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,13 @@
+{
+  "_comment": "Maps store identity signals to store_id. Keys are lowercased substrings matched against the From display name or reply-to email.",
+  "name_patterns": {
+    "grand rapids": "sharkeys_grand_rapids",
+    "grandrapids": "sharkeys_grand_rapids"
+  },
+  "reply_to_patterns": {
+    "grandrapids@sharkeyscutsforkids.com": "sharkeys_grand_rapids"
+  },
+  "store_names": {
+    "sharkeys_grand_rapids": "Sharkey's Cuts for Kids - Grand Rapids"
+  }
+}

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+  <h1 style="margin:0">Ingestion History — {{ cfg.store_name or store_id }}</h1>
+  <a href="/stores/{{ store_id }}" class="btn btn-secondary">← Back</a>
+</div>
+<div class="card">
+{% if rows %}
+<table>
+  <tr>
+    <th>Date</th><th>File</th><th>Type</th><th>Status</th><th>Raw Rows</th><th>Loaded</th><th>Error</th>
+  </tr>
+  {% for r in rows %}
+  <tr>
+    <td style="white-space:nowrap;font-size:13px">{{ r.ingested_at }}</td>
+    <td style="font-size:13px">{{ r.source_filename }}</td>
+    <td style="font-size:13px">{{ r.report_type }}</td>
+    <td>
+      {% if r.status == 'complete' %}
+        <span style="color:#2ecc71;font-weight:700">✓ complete</span>
+      {% elif r.status == 'duplicate' %}
+        <span style="color:#95a5a6">duplicate</span>
+      {% else %}
+        <span style="color:#e74c3c">{{ r.status }}</span>
+      {% endif %}
+    </td>
+    <td style="text-align:right">{{ r.row_count_raw }}</td>
+    <td style="text-align:right">{{ r.row_count_loaded }}</td>
+    <td style="color:#e74c3c;font-size:12px">{{ r.error_message or '' }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p style="color:#888">No ingestion records yet.</p>
+{% endif %}
+</div>
+{% endblock %}

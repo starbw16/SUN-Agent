@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Edit — {{ cfg.store_name or cfg.store_id }}</h1>
+<div class="card">
+<form method="POST">
+  <div class="form-row">
+    <div>
+      <label>Owner Email</label>
+      <input type="email" name="owner_email" value="{{ cfg.owner_email or '' }}">
+    </div>
+    <div>
+      <label>Owner Phone</label>
+      <input type="text" name="owner_phone" value="{{ cfg.owner_phone or '' }}" placeholder="+16165550100">
+    </div>
+  </div>
+  <div class="form-row">
+    <div>
+      <label>Twilio Number (for this store's SMS)</label>
+      <input type="text" name="twilio_number" value="{{ cfg.twilio_number or '' }}" placeholder="+16165550100">
+    </div>
+    <div>
+      <label>Booking URL</label>
+      <input type="text" name="booking_url" value="{{ cfg.booking_url or '' }}" placeholder="https://...">
+    </div>
+  </div>
+  <div class="form-row">
+    <div>
+      <label>Timezone</label>
+      <input type="text" name="timezone" value="{{ cfg.timezone or 'America/New_York' }}">
+    </div>
+    <div>
+      <label>Retention Windows (weeks, comma-separated)</label>
+      <input type="text" name="retention_windows_weeks"
+             value="{% if cfg.retention_windows_days %}{% for d in cfg.retention_windows_days %}{% if not loop.first %}, {% endif %}{{ (d / 7) | int }}{% endfor %}{% else %}4, 6, 8{% endif %}">
+    </div>
+  </div>
+  <div class="form-row">
+    <div>
+      <label>Brief Frequency</label>
+      <select name="brief_frequency">
+        <option value="daily" {% if (cfg.brief_frequency or 'daily') == 'daily' %}selected{% endif %}>Daily</option>
+        <option value="weekly" {% if cfg.brief_frequency == 'weekly' %}selected{% endif %}>Weekly (Monday)</option>
+      </select>
+    </div>
+    <div>
+      <label>Utilization Tier</label>
+      <select name="utilization_tier">
+        <option value="low"    {% if cfg.utilization_tier == 'low'    %}selected{% endif %}>Low (&lt;40% booked)</option>
+        <option value="mid"    {% if (cfg.utilization_tier or 'mid') == 'mid'    %}selected{% endif %}>Mid (40–70%)</option>
+        <option value="growth" {% if cfg.utilization_tier == 'growth' %}selected{% endif %}>Growth (&gt;70%)</option>
+      </select>
+    </div>
+  </div>
+  <div style="display:flex;gap:12px;margin-top:4px">
+    <button type="submit" class="btn btn-primary">Save Settings</button>
+    <a href="/stores/{{ cfg.store_id }}" class="btn btn-secondary">Cancel</a>
+  </div>
+</form>
+</div>
+{% endblock %}

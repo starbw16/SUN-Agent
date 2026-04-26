@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+  <h1 style="margin:0">All Locations ({{ stores|length }})</h1>
+  <form method="POST" action="/poll-email" style="margin:0">
+    <button type="submit" class="btn btn-primary">Check Email Now</button>
+  </form>
+</div>
+{% if not stores %}
+<div class="card">
+  <p>No stores found. Stores are auto-created when the first Salon Ultimate report email arrives.</p>
+  <p style="margin-top:8px;color:#888;font-size:13px">
+    Run <code>python3 manage.py add-store</code> to add one manually.
+  </p>
+</div>
+{% else %}
+<div class="card">
+<table>
+  <tr>
+    <th>Store</th>
+    <th>Tier</th>
+    <th>Brief</th>
+    <th>Owner Email</th>
+    <th>Booking URL</th>
+    <th></th>
+  </tr>
+  {% for s in stores %}
+  <tr>
+    <td>
+      <a href="/stores/{{ s.store_id }}"><strong>{{ s.store_name or s.store_id }}</strong></a>
+      <div style="font-size:11px;color:#999">{{ s.store_id }}</div>
+    </td>
+    <td>
+      {% set tier = s.utilization_tier or 'mid' %}
+      <span class="badge badge-{{ tier }}">{{ tier.upper() }}</span>
+    </td>
+    <td>
+      {% set freq = s.brief_frequency or 'daily' %}
+      <span class="badge badge-{{ freq }}">{{ freq }}</span>
+    </td>
+    <td>{{ s.owner_email or '⚠ not set' }}</td>
+    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+      {% if s.booking_url %}<a href="{{ s.booking_url }}" target="_blank">{{ s.booking_url }}</a>{% else %}⚠ not set{% endif %}
+    </td>
+    <td>
+      <a href="/stores/{{ s.store_id }}/edit" class="btn btn-secondary" style="font-size:12px;padding:4px 10px">Edit</a>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+{% endif %}
+{% endblock %}
