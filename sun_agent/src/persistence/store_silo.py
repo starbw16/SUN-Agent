@@ -44,6 +44,7 @@ def create_store_silo(store_id: str, store_name: str, config_overrides: dict = N
             "store_id": store_id,
             "store_name": store_name,
             "booking_url": "",
+            "pages_url": "",
             "owner_email": "",
             "owner_phone": "",
             "twilio_number": "",

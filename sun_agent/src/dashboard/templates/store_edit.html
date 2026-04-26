@@ -25,6 +25,13 @@
   </div>
   <div class="form-row">
     <div>
+      <label>Dashboard Page URL (Cloudflare Pages)</label>
+      <input type="text" name="pages_url" value="{{ cfg.pages_url or '' }}" placeholder="https://sun-agent.pages.dev/grand_rapids_mi">
+    </div>
+    <div></div>
+  </div>
+  <div class="form-row">
+    <div>
       <label>Timezone</label>
       <input type="text" name="timezone" value="{{ cfg.timezone or 'America/New_York' }}">
     </div>

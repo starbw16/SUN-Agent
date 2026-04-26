@@ -17,6 +17,7 @@ def format_brief_text(brief: dict) -> str:
     u3  = brief.get("utilization_3",  {})
     ud  = brief.get("utilization_day", {})
     booking_url = config.get("booking_url", "")
+    pages_url   = config.get("pages_url", "")
     tier = open_chair.get("tier", "mid").upper()
 
     lines = [
@@ -102,6 +103,8 @@ def format_brief_text(brief: dict) -> str:
         lines.append(f"  {ch['channel']:<25} {ch['count']:>4}  ({ch['pct']}%)")
     lines.append("")
 
+    if pages_url:
+        lines += ["", f"VIEW YOUR DASHBOARD: {pages_url}", ""]
     lines += ["=" * 60, "SUN-Agent | Powered by Salon Ultimate data", ""]
     return "\n".join(lines)
 
@@ -120,6 +123,7 @@ def format_brief_html(brief: dict) -> str:
     u3  = brief.get("utilization_3",  {})
     ud  = brief.get("utilization_day", {})
     booking_url = config.get("booking_url", "")
+    pages_url   = config.get("pages_url", "")
     tier = open_chair.get("tier", "mid").upper()
     cov_pct = round(open_chair["coverage"] * 100)
 
@@ -214,6 +218,12 @@ def format_brief_html(brief: dict) -> str:
         channel_rows += f"<tr><td>{ch['channel']}</td><td>{ch['count']}</td><td>{ch['pct']}%</td></tr>"
 
     booking_link = f'<p><a href="{booking_url}" style="color:#e63946">Book online →</a></p>' if booking_url else ""
+    pages_link   = (
+        f'<p style="margin-top:24px;text-align:center">'
+        f'<a href="{pages_url}" style="background:#1a1a2e;color:#fff;padding:10px 24px;'
+        f'border-radius:6px;text-decoration:none;font-size:14px;font-weight:600">'
+        f'View your dashboard →</a></p>'
+    ) if pages_url else ""
 
     html = f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
@@ -250,6 +260,7 @@ def format_brief_html(brief: dict) -> str:
 {section("Booking Channels — last 7 days")}
 {"<table><tr><th>Channel</th><th>Bookings</th><th>Share</th></tr>" + channel_rows + "</table>" if channel_rows else "<p style='color:#aaa'>No channel data yet.</p>"}
 
+{pages_link}
 <hr style="margin-top:32px;border:none;border-top:1px solid #eee">
 <p style="font-size:11px;color:#aaa">SUN-Agent | Powered by Salon Ultimate data</p>
 </body></html>"""

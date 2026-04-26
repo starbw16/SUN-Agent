@@ -20,6 +20,7 @@ EDITABLE_FIELDS = {
     "owner_phone":        "Owner Phone",
     "twilio_number":      "Twilio Number",
     "booking_url":        "Booking URL",
+    "pages_url":          "Dashboard Page URL (Cloudflare Pages)",
     "google_review_url":  "Google Review URL",
     "review_alert_email": "Review Alert Email (negative reviews)",
     "timezone":           "Timezone",
