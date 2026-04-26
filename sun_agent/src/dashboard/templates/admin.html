@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+  <h1 style="margin:0">Admin Overview — {{ rows|length }} store(s)</h1>
+  <form method="GET" action="/admin" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <label style="margin:0;font-weight:600;font-size:13px">From</label>
+    <input type="date" name="start" value="{{ start }}" style="width:auto;margin:0;padding:6px 10px">
+    <label style="margin:0;font-weight:600;font-size:13px">To</label>
+    <input type="date" name="end" value="{{ end }}" max="{{ today }}" style="width:auto;margin:0;padding:6px 10px">
+    <button type="submit" class="btn btn-primary" style="padding:6px 14px">Apply</button>
+    <a href="/admin" class="btn btn-secondary" style="padding:6px 14px">Reset</a>
+  </form>
+</div>
+
+<div class="card" style="padding:0;overflow:hidden">
+<table>
+  <tr>
+    <th>Store</th>
+    <th>Range Util %</th>
+    <th>7-Day Avg</th>
+    <th>3-Day Trend</th>
+    <th>Appts/Day</th>
+    <th>Days of Data</th>
+    <th>Lapsed</th>
+    <th>Risk</th>
+    <th>Pages</th>
+    <th></th>
+  </tr>
+  {% for r in rows %}
+  {% if r.get("error") %}
+  <tr>
+    <td colspan="10" style="color:#e63946;font-size:12px">
+      {{ r.store_id }} — {{ r.error }}
+    </td>
+  </tr>
+  {% else %}
+  {% set u  = r.util %}
+  {% set u7 = r.util_7 %}
+  {% set u3 = r.util_3 %}
+  {% set pct   = u.avg_pct if u.days_on_record else "—" %}
+  {% set pct7  = u7.avg_pct if u7.days_on_record else "—" %}
+  {% set pct3  = u3.avg_pct if u3.days_on_record else "—" %}
+  {% set diff  = (u3.avg_pct - u7.avg_pct) if (u3.days_on_record and u7.days_on_record) else None %}
+  {% if diff is not none %}
+    {% if diff >= 5 %}{% set tcolor = "#27ae60" %}{% set arr = "↑" %}
+    {% elif diff <= -5 %}{% set tcolor = "#e74c3c" %}{% set arr = "↓" %}
+    {% else %}{% set tcolor = "#888" %}{% set arr = "→" %}{% endif %}
+    {% set dpp = ("+" if diff > 0 else "") + diff|string + "pp" %}
+  {% else %}
+    {% set tcolor = "#888" %}{% set arr = "—" %}{% set dpp = "" %}
+  {% endif %}
+  <tr>
+    <td>
+      <a href="/stores/{{ r.store_id }}" style="font-weight:600;color:#1a1a2e">{{ r.store_name }}</a>
+      <div style="font-size:11px;color:#aaa">{{ r.store_id }}</div>
+    </td>
+    <td style="font-size:16px;font-weight:700;color:#1a1a2e">
+      {% if pct == "—" %}—{% else %}{{ pct }}%{% endif %}
+    </td>
+    <td>{% if pct7 == "—" %}—{% else %}{{ pct7 }}%{% endif %}</td>
+    <td style="color:{{ tcolor }};font-weight:700">
+      {{ arr }}{% if dpp %} <span style="font-size:11px;font-weight:400">{{ dpp }}</span>{% endif %}
+    </td>
+    <td style="font-size:12px;color:#555">
+      {{ u.avg_booked_appts }}/{{ u.avg_total_appts }}
+    </td>
+    <td style="color:#888">{{ u.days_on_record }}d</td>
+    <td>
+      {% if r.lapsed > 0 %}
+        <span style="font-weight:700;color:#e67e22">{{ r.lapsed }}</span>
+      {% else %}0{% endif %}
+    </td>
+    <td>
+      {% if r.risk > 0 %}
+        <span style="font-weight:700;color:#e74c3c">{{ r.risk }}</span>
+      {% else %}0{% endif %}
+    </td>
+    <td style="font-size:12px">
+      {% if r.pages_url %}
+        <a href="{{ r.pages_url }}" target="_blank" style="color:#e63946">Live →</a>
+      {% else %}
+        <span style="color:#ccc">not set</span>
+      {% endif %}
+    </td>
+    <td>
+      <a href="/stores/{{ r.store_id }}" class="btn btn-secondary" style="font-size:12px;padding:4px 10px">Detail</a>
+    </td>
+  </tr>
+  {% endif %}
+  {% endfor %}
+</table>
+</div>
+
+{% endblock %}

@@ -345,6 +345,57 @@ def store_ingestion(store_id):
     return render_template("ingestion.html", cfg=cfg, rows=[dict(r) for r in rows], store_id=store_id)
 
 
+@app.route("/admin")
+def admin():
+    from src.intelligence.utilization import get_avg_utilization, get_daily_series
+    from src.reporting.brief_builder import build_brief
+    from datetime import timedelta
+
+    # Date range filter — ?start=YYYY-MM-DD&end=YYYY-MM-DD
+    end_str   = request.args.get("end",   str(date.today()))
+    start_str = request.args.get("start", str(date.today() - timedelta(days=29)))
+    try:
+        end_date   = date.fromisoformat(end_str)
+        start_date = date.fromisoformat(start_str)
+    except ValueError:
+        end_date   = date.today()
+        start_date = end_date - timedelta(days=29)
+
+    days_back = max((end_date - start_date).days, 0)
+
+    store_ids = [p.parent.name for p in sorted(STORES_ROOT.glob("*/sun_agent.db"))]
+    rows = []
+    for sid in store_ids:
+        try:
+            cfg  = _load(sid)
+            u    = get_avg_utilization(sid, days_back=days_back, reference_date=end_date)
+            u7   = get_avg_utilization(sid, days_back=7, reference_date=end_date)
+            u3   = get_avg_utilization(sid, days_back=3, reference_date=end_date)
+            ser  = get_daily_series(sid, days_back=days_back, reference_date=end_date)
+            brief = build_brief(sid, brief_date=end_date)
+            rows.append({
+                "store_id":   sid,
+                "store_name": cfg.get("store_name", sid),
+                "pages_url":  cfg.get("pages_url", ""),
+                "util":       u,
+                "util_7":     u7,
+                "util_3":     u3,
+                "series":     ser.get("store_daily", []),
+                "lapsed":     brief["retention"]["total_lapsed"],
+                "risk":       len(brief["risk"]),
+            })
+        except Exception as exc:
+            rows.append({"store_id": sid, "store_name": sid, "error": str(exc)})
+
+    return render_template(
+        "admin.html",
+        rows=rows,
+        start=str(start_date),
+        end=str(end_date),
+        today=str(date.today()),
+    )
+
+
 def _mirror_to_db(store_id: str, cfg: dict):
     import sqlite3 as _sq
     db = STORES_ROOT / store_id / "sun_agent.db"
