@@ -351,50 +351,72 @@ def render_page_html(brief: dict) -> str:
 def render_admin_html(briefs: list[dict]) -> str:
     generated = datetime.now().strftime("%B %d, %Y at %-I:%M %p")
 
-    # Build per-store summary rows + embed all series data
-    all_series = {}
-    store_rows = ""
-    for brief in briefs:
-        sid   = brief["store_id"]
-        name  = brief["store_name"]
-        u7    = brief.get("utilization_7", {})
-        u3    = brief.get("utilization_3", {})
-        ret   = brief["retention"]
-        risk  = brief["risk"]
-        series = brief.get("utilization_series", {})
-        all_series[sid] = series.get("store_daily", [])
+    all_series  = {}
+    all_configs = {}
+    store_rows  = ""
 
-        pct7  = u7.get("avg_pct", 0) if u7.get("days_on_record") else None
-        pct3  = u3.get("avg_pct")    if u3.get("days_on_record") else None
-        diff  = (pct3 - pct7) if (pct3 is not None and pct7 is not None) else None
-        tc    = "#27ae60" if (diff is not None and diff >= 5) else ("#e74c3c" if (diff is not None and diff <= -5) else "#888")
-        arr   = ("↑" if diff >= 5 else ("↓" if diff <= -5 else "→")) if diff is not None else "—"
-        days  = u7.get("days_on_record", 0)
+    for brief in briefs:
+        sid    = brief["store_id"]
+        config = brief["config"]
+        u7     = brief.get("utilization_7", {})
+        u3     = brief.get("utilization_3", {})
+        ret    = brief["retention"]
+        risk   = brief["risk"]
+        series = brief.get("utilization_series", {})
+        all_series[sid]  = series.get("store_daily", [])
+        all_configs[sid] = {
+            "store_name":           config.get("store_name", sid),
+            "booking_url":          config.get("booking_url", ""),
+            "pages_url":            config.get("pages_url", ""),
+            "timezone":             config.get("timezone", "America/New_York"),
+            "slot_duration_minutes": config.get("slot_duration_minutes", 20),
+            "utilization_tier":     config.get("utilization_tier", "mid"),
+            "brief_frequency":      config.get("brief_frequency", "daily"),
+        }
+
+        pct7 = u7.get("avg_pct", 0) if u7.get("days_on_record") else None
+        pct3 = u3.get("avg_pct")    if u3.get("days_on_record") else None
+        diff = (pct3 - pct7) if (pct3 is not None and pct7 is not None) else None
+        tc   = "#27ae60" if (diff is not None and diff >= 5) else ("#e74c3c" if (diff is not None and diff <= -5) else "#888")
+        arr  = ("↑" if diff >= 5 else ("↓" if diff <= -5 else "→")) if diff is not None else "—"
+        days = u7.get("days_on_record", 0)
 
         store_daily = series.get("store_daily", [])
         spark = _mini_sparkline([d["booked"] for d in store_daily], width=100, height=24, svg_id=f"adm-spark-{sid}") if len(store_daily) >= 2 else "—"
-
-        pct7_str  = f'<span id="adm-pct-{sid}">{pct7}%</span>'  if pct7 is not None else "—"
-        range_str = f'<span id="adm-range-{sid}">—</span>'
+        pct7_str  = f'<span id="adm-pct-{sid}">{pct7}%</span>' if pct7 is not None else "—"
+        pages_link = f'<a href="{config["pages_url"]}" target="_blank" style="color:#e63946;font-size:12px">Live →</a>' if config.get("pages_url") else '<span style="color:#ccc;font-size:12px">not set</span>'
 
         store_rows += f"""<tr>
-          <td style="font-weight:600"><a href="/{sid}/" style="color:#e63946;text-decoration:none">{name}</a></td>
+          <td style="font-weight:600">
+            <a href="/{sid}/" style="color:#e63946;text-decoration:none">{config.get("store_name", sid)}</a>
+            <div style="font-size:11px;color:#aaa">{sid}</div>
+          </td>
           <td>{pct7_str}</td>
           <td style="color:{tc};font-weight:600">{arr}</td>
-          <td>{range_str}</td>
+          <td><span id="adm-range-{sid}">—</span></td>
           <td>{ret['total_lapsed']}</td>
           <td>{len(risk)}</td>
-          <td>{days}d</td>
-          <td>{spark}</td>
-          <td><a href="/{sid}/" style="color:#e63946;font-size:12px">View →</a></td>
+          <td style="color:#888">{days}d</td>
+          <td style="padding:4px 8px">{spark}</td>
+          <td>{pages_link}</td>
+          <td>
+            <button onclick="openEdit('{sid}')"
+              style="background:#1a1a2e;color:#fff;border:none;padding:5px 12px;border-radius:5px;cursor:pointer;font-size:12px">
+              Edit
+            </button>
+          </td>
         </tr>"""
 
-    all_series_json = json.dumps(all_series)
+    all_series_json  = json.dumps(all_series)
+    all_configs_json = json.dumps(all_configs)
+    num_stores = len(briefs)
 
-    _admin_js_template = """
+    _js = """
 (function() {
-const ALL = __DATA__;
-function avg(arr) { return arr.length ? arr.reduce((s,x)=>s+x,0)/arr.length : 0; }
+const ALL     = __SERIES__;
+const CONFIGS = __CONFIGS__;
+
+// ── Date range filter ────────────────────────────────────────────────────────
 function svgPoints(vals, w, h) {
   if (!vals.length) return "";
   const pad=5, n=vals.length, mx=Math.max(...vals,1);
@@ -409,36 +431,153 @@ function applyRange(start, end) {
     const filtered = days.filter(d => d.date >= start && d.date <= end);
     const booked = filtered.map(d => d.booked);
     const total  = filtered.map(d => d.total || 0);
-    const sumBooked = booked.reduce((s,x)=>s+x,0);
-    const sumTotal  = total.reduce((s,x)=>s+x,0);
-    const pct = sumTotal ? Math.round(sumBooked/sumTotal*100) : 0;
-    const rangeEl = document.getElementById("adm-range-"+sid);
-    if (rangeEl) rangeEl.textContent = filtered.length ? pct+"%" : "—";
-    const spEl = document.getElementById("adm-spark-"+sid+"-line");
-    if (spEl) spEl.setAttribute("points", svgPoints(booked, 100, 24));
+    const sumB = booked.reduce((s,x)=>s+x,0);
+    const sumT = total.reduce((s,x)=>s+x,0);
+    const pct  = sumT ? Math.round(sumB/sumT*100) : 0;
+    const el = document.getElementById("adm-range-"+sid);
+    if (el) el.textContent = filtered.length ? pct+"%" : "—";
+    const sp = document.getElementById("adm-spark-"+sid+"-line");
+    if (sp) sp.setAttribute("points", svgPoints(booked, 100, 24));
   }
 }
-function init() {
+function initRange() {
   const allDates = Object.values(ALL).flat().map(d=>d.date).sort();
-  const minDate = allDates[0] || "";
-  const maxDate = allDates[allDates.length-1] || "";
+  const minDate  = allDates[0] || "";
+  const maxDate  = allDates[allDates.length-1] || "";
   const s = document.getElementById("adm-start");
   const e = document.getElementById("adm-end");
-  if (!s || !e) return;
+  if (!s||!e) return;
   s.min=minDate; s.max=maxDate; e.min=minDate; e.max=maxDate;
-  s.value = allDates.length > 30 ? allDates[allDates.length-30] : (allDates[0]||"");
+  s.value = allDates.length>30 ? allDates[allDates.length-30] : (allDates[0]||"");
   e.value = maxDate;
-  const onChange = () => { if (s.value && e.value) applyRange(s.value, e.value); };
+  const onChange = () => { if (s.value&&e.value) applyRange(s.value,e.value); };
   s.addEventListener("change", onChange);
   e.addEventListener("change", onChange);
-  if (s.value && e.value) applyRange(s.value, e.value);
+  if (s.value&&e.value) applyRange(s.value,e.value);
 }
-document.addEventListener("DOMContentLoaded", init);
+
+// ── Edit modal ───────────────────────────────────────────────────────────────
+window.openEdit = function(sid) {
+  const cfg = CONFIGS[sid];
+  if (!cfg) return;
+  document.getElementById("edit-store-id").value   = sid;
+  document.getElementById("edit-store-name").value  = cfg.store_name || "";
+  document.getElementById("edit-booking-url").value = cfg.booking_url || "";
+  document.getElementById("edit-pages-url").value   = cfg.pages_url || "";
+  document.getElementById("edit-timezone").value    = cfg.timezone || "";
+  document.getElementById("edit-slot-duration").value = cfg.slot_duration_minutes || 20;
+  document.getElementById("edit-tier").value        = cfg.utilization_tier || "mid";
+  document.getElementById("edit-frequency").value   = cfg.brief_frequency || "daily";
+  document.getElementById("edit-status").textContent = "";
+  document.getElementById("edit-modal").style.display = "flex";
+};
+
+window.closeEdit = function() {
+  document.getElementById("edit-modal").style.display = "none";
+};
+
+document.addEventListener("DOMContentLoaded", function() {
+  initRange();
+
+  document.getElementById("edit-form").addEventListener("submit", async function(e) {
+    e.preventDefault();
+    const statusEl = document.getElementById("edit-status");
+    statusEl.style.color = "#888";
+    statusEl.textContent = "Saving…";
+
+    const sid    = document.getElementById("edit-store-id").value;
+    const secret = document.getElementById("edit-secret").value;
+    const payload = {
+      store_id:              sid,
+      store_name:            document.getElementById("edit-store-name").value,
+      booking_url:           document.getElementById("edit-booking-url").value,
+      pages_url:             document.getElementById("edit-pages-url").value,
+      timezone:              document.getElementById("edit-timezone").value,
+      slot_duration_minutes: parseInt(document.getElementById("edit-slot-duration").value) || 20,
+      utilization_tier:      document.getElementById("edit-tier").value,
+      brief_frequency:       document.getElementById("edit-frequency").value,
+    };
+
+    try {
+      const res = await fetch("/api/update-store", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Admin-Secret": secret },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        statusEl.style.color = "#27ae60";
+        statusEl.textContent = "Saved! Changes take effect after next generate_pages.py run.";
+        // Update local CONFIGS so modal reflects new values
+        CONFIGS[sid] = { ...CONFIGS[sid], ...payload };
+      } else {
+        statusEl.style.color = "#e74c3c";
+        statusEl.textContent = "Error: " + (data.error || res.statusText);
+      }
+    } catch(err) {
+      statusEl.style.color = "#e74c3c";
+      statusEl.textContent = "Network error: " + err.message;
+    }
+  });
+});
 })();
 """
-    admin_js = "<script>" + _admin_js_template.replace("__DATA__", all_series_json) + "</script>"
 
-    no_stores = '<tr><td colspan="9" style="color:#aaa">No stores ingested yet.</td></tr>'
+    js_block = ("<script>" +
+                _js.replace("__SERIES__", all_series_json)
+                   .replace("__CONFIGS__", all_configs_json) +
+                "</script>")
+
+    modal = """
+<div id="edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);
+     z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:10px;padding:28px 32px;width:480px;max-width:95vw;
+              max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <h2 style="margin:0;font-size:18px;color:#1a1a2e">Edit Store</h2>
+      <button onclick="closeEdit()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#888">&times;</button>
+    </div>
+    <form id="edit-form">
+      <input type="hidden" id="edit-store-id">
+      <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:2px">Store Name</label>
+      <input id="edit-store-name" type="text" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:5px;font-size:14px;margin-bottom:14px">
+      <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:2px">Booking URL</label>
+      <input id="edit-booking-url" type="text" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:5px;font-size:14px;margin-bottom:14px" placeholder="https://...">
+      <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:2px">Dashboard Page URL (Cloudflare Pages)</label>
+      <input id="edit-pages-url" type="text" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:5px;font-size:14px;margin-bottom:14px" placeholder="https://sun-agent.pages.dev/store_id">
+      <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:2px">Timezone</label>
+      <input id="edit-timezone" type="text" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:5px;font-size:14px;margin-bottom:14px" placeholder="America/New_York">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:2px">Slot Duration (min)</label>
+          <input id="edit-slot-duration" type="number" min="5" max="60" step="5" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:5px;font-size:14px">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:2px">Utilization Tier</label>
+          <select id="edit-tier" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:5px;font-size:14px">
+            <option value="low">Low (&lt;40%)</option>
+            <option value="mid">Mid (40-70%)</option>
+            <option value="growth">Growth (&gt;70%)</option>
+          </select>
+        </div>
+      </div>
+      <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:2px">Brief Frequency</label>
+      <select id="edit-frequency" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:5px;font-size:14px;margin-bottom:14px">
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly</option>
+      </select>
+      <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:2px">Admin Secret</label>
+      <input id="edit-secret" type="password" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:5px;font-size:14px;margin-bottom:20px" placeholder="ADMIN_SECRET env variable">
+      <div style="display:flex;gap:10px;align-items:center">
+        <button type="submit" style="background:#1a1a2e;color:#fff;border:none;padding:9px 22px;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer">Save</button>
+        <button type="button" onclick="closeEdit()" style="background:#eee;color:#333;border:none;padding:9px 22px;border-radius:6px;font-size:14px;cursor:pointer">Cancel</button>
+        <span id="edit-status" style="font-size:12px;color:#888;margin-left:8px"></span>
+      </div>
+    </form>
+  </div>
+</div>"""
+
+    no_stores = '<tr><td colspan="10" style="color:#aaa">No stores ingested yet.</td></tr>'
 
     return f"""<!DOCTYPE html>
 <html lang="en"><head>
@@ -446,48 +585,44 @@ document.addEventListener("DOMContentLoaded", init);
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SUN-Agent Admin</title>
 <style>
-  body {{ font-family:Arial,sans-serif; color:#333; max-width:960px; margin:auto; padding:28px 20px; }}
+  body {{ font-family:Arial,sans-serif; color:#333; max-width:1000px; margin:auto; padding:28px 20px; }}
   h1 {{ color:#1a1a2e; margin-bottom:2px; }}
   table {{ border-collapse:collapse; width:100%; margin-top:16px; }}
   th {{ background:#1a1a2e; color:#fff; padding:8px 10px; text-align:left; font-size:12px; }}
   td {{ padding:7px 10px; border-bottom:1px solid #eee; font-size:13px; vertical-align:middle; }}
   tr:hover td {{ background:#fafafa; }}
-  .pill {{ display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;color:#fff; }}
 </style>
 </head><body>
 
+{modal}
+
 <h1>SUN-Agent Admin</h1>
 <p style="color:#888;margin-top:0;font-size:13px">
-  {len(briefs)} store(s) &nbsp;·&nbsp; Last generated: {generated}
+  {num_stores} store(s) &nbsp;·&nbsp; Last generated: {generated}
   &nbsp;·&nbsp; <a href="/" style="color:#e63946;font-size:12px">← Public index</a>
 </p>
 <p style="font-size:11px;color:#bbb;margin-top:-8px">
-  Tip: protect this page with <a href="https://developers.cloudflare.com/cloudflare-one/policies/access/" style="color:#e63946">Cloudflare Access</a> to require login.
+  Protect this page with
+  <a href="https://developers.cloudflare.com/cloudflare-one/policies/access/" style="color:#e63946">Cloudflare Access</a>.
+  Set <code>GITHUB_TOKEN</code>, <code>GITHUB_REPO</code>, and <code>ADMIN_SECRET</code> in CF Pages env variables to enable editing.
 </p>
 
-<div style="display:flex;align-items:center;gap:12px;margin-bottom:4px;
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;
             background:#f8f9ff;border:1px solid #e0e0ee;border-radius:8px;padding:12px 16px;flex-wrap:wrap">
-  <span style="font-size:12px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Filter Date Range</span>
+  <span style="font-size:12px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Date Range</span>
   <label style="font-size:12px;color:#555">From
     <input id="adm-start" type="date" style="margin-left:6px;font-size:13px;border:1px solid #ddd;border-radius:4px;padding:3px 6px">
   </label>
   <label style="font-size:12px;color:#555">To
     <input id="adm-end" type="date" style="margin-left:6px;font-size:13px;border:1px solid #ddd;border-radius:4px;padding:3px 6px">
   </label>
-  <span style="font-size:11px;color:#bbb">Updates "Range %" column and sparklines</span>
+  <span style="font-size:11px;color:#bbb">Updates "Range %" and sparklines</span>
 </div>
 
 <table>
   <tr>
-    <th>Store</th>
-    <th>7-Day Util</th>
-    <th>3-Day Trend</th>
-    <th>Range %</th>
-    <th>Lapsed</th>
-    <th>Risk Appts</th>
-    <th>Data</th>
-    <th>Bookings (30d)</th>
-    <th></th>
+    <th>Store</th><th>7-Day Util</th><th>3-Day Trend</th><th>Range %</th>
+    <th>Lapsed</th><th>Risk</th><th>Data</th><th>Bookings</th><th>Live Page</th><th></th>
   </tr>
   {store_rows or no_stores}
 </table>
@@ -495,7 +630,7 @@ document.addEventListener("DOMContentLoaded", init);
 <hr style="margin-top:40px;border:none;border-top:1px solid #eee">
 <p style="font-size:11px;color:#aaa">SUN-Agent | Powered by Salon Ultimate data</p>
 
-{admin_js}
+{js_block}
 </body></html>"""
 
 

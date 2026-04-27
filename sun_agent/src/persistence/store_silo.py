@@ -8,7 +8,8 @@ from pathlib import Path
 from .schema import init_schema
 
 
-STORES_ROOT = Path(__file__).resolve().parents[3] / "stores"
+STORES_ROOT  = Path(__file__).resolve().parents[3] / "stores"
+CONFIG_ROOT  = Path(__file__).resolve().parents[3] / "config"
 
 
 def get_store_path(store_id: str) -> Path:
@@ -73,10 +74,19 @@ def get_db(store_id: str) -> sqlite3.Connection:
 
 
 def load_store_config(store_id: str) -> dict:
-    config_path = get_store_path(store_id) / "store_config.json"
-    if config_path.exists():
-        return json.loads(config_path.read_text())
-    return {}
+    """
+    Load config, merging repo config/  (non-sensitive, tracked in git) with
+    the local stores/ config (has sensitive fields like owner_email/phone).
+    Local store config takes precedence on any key conflict.
+    """
+    cfg = {}
+    repo_config_path = CONFIG_ROOT / f"{store_id}.json"
+    if repo_config_path.exists():
+        cfg.update(json.loads(repo_config_path.read_text()))
+    local_config_path = get_store_path(store_id) / "store_config.json"
+    if local_config_path.exists():
+        cfg.update(json.loads(local_config_path.read_text()))
+    return cfg
 
 
 def resolve_store_id(store_name_raw: str) -> str:

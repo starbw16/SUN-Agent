@@ -1,0 +1,11 @@
+{
+  "store_id": "grand_rapids_mi",
+  "store_name": "Grand Rapids, MI",
+  "booking_url": "www.allergysafeusa.com",
+  "pages_url": "",
+  "timezone": "America/New_York",
+  "slot_duration_minutes": 20,
+  "utilization_tier": "mid",
+  "brief_frequency": "daily",
+  "retention_windows_days": [28, 42, 56]
+}
