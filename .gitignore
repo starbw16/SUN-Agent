@@ -38,3 +38,9 @@ htmlcov/
 *.log
 sun_agent/logs/
 logs/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example
