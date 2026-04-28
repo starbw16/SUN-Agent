@@ -71,9 +71,17 @@ def get_templates(window_days: int) -> list[str]:
     return TIER_8W
 
 
+def _normalize_url(url: str) -> str:
+    if not url:
+        return "[booking link]"
+    if not url.startswith(("http://", "https://")):
+        return "https://" + url
+    return url
+
+
 def render(template: str, first_name: str, store_name: str, booking_url: str) -> str:
     return template.format(
         first_name=first_name,
         store_name=store_name,
-        booking_url=booking_url or "[booking link]",
+        booking_url=_normalize_url(booking_url),
     )
