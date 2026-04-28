@@ -179,6 +179,20 @@ CREATE TABLE IF NOT EXISTS provider_timesheets (
     UNIQUE(store_id, provider_name_norm, work_date)
 );
 
+CREATE TABLE IF NOT EXISTS lapsed_outreach_log (
+    log_id          TEXT PRIMARY KEY,
+    store_id        TEXT NOT NULL REFERENCES stores(store_id),
+    client_key      TEXT,
+    phone           TEXT NOT NULL,
+    window_days     INTEGER NOT NULL,
+    message_index   INTEGER NOT NULL DEFAULT 0,
+    message_body    TEXT,
+    status          TEXT DEFAULT 'sent',
+    sent_at         TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_outreach_phone ON lapsed_outreach_log(store_id, phone, window_days);
+
 CREATE TABLE IF NOT EXISTS review_requests (
     request_id      TEXT PRIMARY KEY,
     store_id        TEXT NOT NULL REFERENCES stores(store_id),
